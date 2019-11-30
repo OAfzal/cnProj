@@ -1,4 +1,3 @@
-// Client side C/C++ program to demonstrate Socket programming 
 #include <stdio.h> 
 #include <sys/socket.h> 
 #include <arpa/inet.h> 
@@ -6,25 +5,36 @@
 #include <string.h> 
 #include <fcntl.h>
 #include <stdlib.h>
+#include <sys/time.h>
 
 #define PORT 5000 
 #define filename "vid.mp4"
-#define IP_ADDR "10.7.27.107"
+#define IP_ADDR "10.7.27.171"
+
+
+struct CustomSegment {
+
+    char payload[500];
+    int sequence;
+};
 
 int main(int argc, char const *argv[]) 
 { 
+
+	int sock = 0, bytes_read,leng;
+	double size_rec = 0;
+	struct sockaddr_in serv_addr; 
+	char *hello = "Hello from client"; 
+	char buffer[500] = {0}; 
+	struct CustomSegment* pkt = malloc(sizeof(struct CustomSegment));
+
+
     FILE *fp;
     fp = fopen(filename,"wb");
     if (fp == NULL) {
         perror("fopen()");
         exit(EXIT_FAILURE);
     }
-
-	int sock = 0, bytes_read;
-	double size_rec = 0;
-	struct sockaddr_in serv_addr; 
-	char *hello = "Hello from client"; 
-	char buffer[1024] = {0}; 
 	
 	if ((sock = socket(AF_INET, SOCK_DGRAM, 0)) < 0) 
 	{ 
@@ -40,29 +50,47 @@ int main(int argc, char const *argv[])
 	{ 
 		printf("\nInvalid address/ Address not supported \n"); 	
 		return -1; 
-	} 
-	int leng;
+	}
+
 	sendto(sock , hello , strlen(hello) , 0,(struct sockaddr *)&serv_addr,sizeof(serv_addr)); 	
-	// valread = read( sock , buffer, 1024); 
 
-	double buff_size[1] = {0};
-	bytes_read =  recvfrom(sock,buff_size,sizeof(buff_size),0,(struct sockaddr *)&serv_addr,&leng);
-	printf("%f\n",buff_size[0]);
 
-	// // will remain open until the server terminates the connection
-	while ((bytes_read = recvfrom(sock, &buffer, sizeof(buffer), MSG_WAITALL,(struct sockaddr *)&serv_addr,&leng)) > 0) {
+	bytes_read = recvfrom(sock, &buffer, sizeof(buffer), 0,(struct sockaddr *)&serv_addr,&leng);
+
+	printf("%s\n",buffer);
+
+	// setsockopt(sock,SOL_SOCKET,SO_SNDTIMEO,(int *)4,sizeof(int));
+
+	// struct timeval timeout;      
+    // timeout.tv_sec = 10;
+    // timeout.tv_usec = 0;
+
+    // if (setsockopt (sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
+    //             sizeof(timeout)) < 0)
+    //     error("setsockopt failed\n");
+
+    // if (setsockopt (sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,
+    //             sizeof(timeout)) < 0)
+    //     error("setsockopt failed\n");
+
+	bzero(buffer,sizeof(buffer));
+
+	while ((bytes_read = recvfrom(sock, pkt, sizeof(*pkt), 0,(struct sockaddr *)&serv_addr,&leng)) > 0) {
 		
 		size_rec += bytes_read;
-		if(!strcmp(buffer,"-1")){
+		if(!strcmp(pkt->payload,"-1")){
 			printf("\nTransfer Complete");
 			break;
 		}
-		printf("\rProgress: %f",(size_rec/buff_size[0])*100.0);
-        fwrite(buffer,bytes_read,1,fp);
+		printf("Sequence: %d\n",pkt->sequence);
+		sprintf(buffer,"%d",pkt->sequence);
+
+		sendto(sock ,buffer , sizeof(buffer) ,0,(struct sockaddr *)&serv_addr,sizeof(serv_addr)); 	
+        fwrite(pkt->payload,sizeof(pkt->payload),1,fp);
         bzero(buffer,sizeof(buffer));
-		buffer[sizeof(buffer)] = '\0';
 	}
-	printf("%f",size_rec);
+
+	// printf("%f",size_rec/1000000);
     fclose(fp);
 	return 0; 
 } 

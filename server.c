@@ -6,45 +6,37 @@
 #include<fcntl.h> 
 #include <netinet/in.h> 
 #include <string.h> 
+#include <sys/time.h>
 
 #define PORT 5000 
 #define filename "haris.mp4"
 
 struct CustomSegment {
 
-    char buffer[500];
+    char payload[500];
     int sequence;
-}
+};
 
-
-double filesize(FILE *f){
-    
-    int prev=ftell(f);
-    fseek(f, 0L, SEEK_END);
-    double sz=ftell(f);
-    fseek(f,prev,SEEK_SET);
-    return sz;
-}
-
-
-int seqNumCounter = 0;
 
 int main(int argc, char *argv[]){
 
-    int sockParent, bytes_read, opt = 1;
+    int sockParent, opt = 1, acked[5],seqNumCounter = 0;
     struct sockaddr_in server, client;
     char buffer[500] = {0};
-    double buff_filesize[1] = {0};
     int addlen = sizeof(server);
+    struct CustomSegment window[5];
+    struct CustomSegment pkt = {"-1",0};
+    
+    size_t bytes_read = 0;
 
-    FILE *fp;
+    FILE *fp, *fp2;
+    fp2 = fopen("data.txt","w");
     fp = fopen(filename,"rb");
     if (fp == NULL) {
         perror("fopen()");
         exit(EXIT_FAILURE);
     }
 
-    buff_filesize[0] = filesize(fp);
 
     //Creating a socket 
     if ((sockParent = socket(AF_INET, SOCK_DGRAM, 0)) == 0) 
@@ -64,32 +56,79 @@ int main(int argc, char *argv[]){
         exit(EXIT_FAILURE);
     }   
 
+
     bytes_read =  recvfrom(sockParent,buffer,sizeof(buffer),0,(struct sockaddr *)&client,&addlen);
     printf("%s\n",buffer);
-    
-    sendto(sockParent , buff_filesize , sizeof(buff_filesize) , 0,(struct sockaddr *)&client,addlen); 
+
 
     bzero(buffer,sizeof(buffer));
 
-    double sizeho = 0.0;
+    sendto(sockParent,"Hello From Server",strlen("Hello From Server"),0,(struct sockaddr *)&client,addlen);
+
+    bytes_read = 0;
+
     while(1){
 
-        size_t bytes_read = fread(buffer,1,sizeof(buffer),fp);
+        for (size_t i = 1; i <= 5; i++)
+        {
+            acked[i] = 0;
+            window[i-1].sequence = seqNumCounter;
+            bytes_read = fread(window[i-1].payload,1,sizeof(window[i-1].payload),fp);
+            seqNumCounter++;
+            // bzero(buffer,sizeof(buffer));
+            // printf("Sequence:%s\n",buffer);
+        }
+
+        for (size_t i = 1; i <= 5; i++)
+        {   
+            sendto(sockParent,(struct CustomSegment*)&window[i-1],sizeof(window[i-1]),0,(struct sockaddr *)&client,addlen);
+            recvfrom(sockParent,buffer,sizeof(buffer),0,(struct sockaddr *)&client,&addlen);
+            // while(1){
+                
+            // }
+            // acked[atoi(buffer)] = 1;
+            printf("Sequence:%s\n",buffer);
+            
+            char data[1000];
+            sprintf(data,"acked,%s\n",buffer);
+            fputs(data,fp2);
+
+            bzero(data,sizeof(data));
+            bzero(buffer,sizeof(buffer));
+        }
+
+        // for (size_t i = 0; i < 5; i++)
+        // {
+        //     char data[50];
+        //     // printf("acked[%ld] = %d\n",i,acked[i]);
+        //     sprintf(data,"acked[%ld] = %d\n",i,acked[i]);
+        //     fputs(data,fp2);
+        // }
+        
         if (bytes_read == 0){
-            int val = sendto(sockParent,"-1",sizeof("-1"),0,(struct sockaddr *)&client,addlen);   
+            printf("\nhere");
+            int val = sendto(sockParent,(struct CustomSegment*)&pkt,sizeof(pkt),0,(struct sockaddr *)&client,addlen);   
             printf("%d",val);
+            fclose(fp2);
             break;
         }
-        char *p = buffer;   
+        seqNumCounter++;
 
-        while(bytes_read > 0){
-            int bytes_written = sendto(sockParent,p,bytes_read,MSG_CONFIRM,(struct sockaddr *)&client,addlen);
-            bytes_read -= bytes_written;
-            sizeho += bytes_written;
-            p += bytes_written;
-        } 
-    }
-    printf("\n%f",sizeho);    
+        // while((recvfrom(sockParent,buffer,sizeof(buffer),0,(struct sockaddr *)&client,&addlen))>0){
+        //     printf("Sequence:%s\n",buffer);
+        //     bzero(buffer,sizeof(buffer));
+        // }
+
+        // char *p = (window[0].payload);   
+
+        // sendto(sockParent,p,sizeof(window[0].payload),0,(struct sockaddr *)&client,addlen);
+
+        // int bytes_written =  recvfrom(sockParent,buffer,sizeof(buffer),0,(struct sockaddr *)&client,&addlen);
+
+        // printf("\r%s",buffer);
+
+    }   
+    printf("Done");    
     return 0;
 
 }
