@@ -20,13 +20,14 @@ struct CustomSegment {
 
 int main(int argc, char *argv[]){
 
-    int sockParent, opt = 1, acked[5],seqNumCounter = 0;
+    int sockParent, opt = 1, acked[5],seqNumCounter = 1;
     struct sockaddr_in server, client;
     char buffer[500] = {0};
     int addlen = sizeof(server);
     struct CustomSegment window[5];
     struct CustomSegment pkt = {"-1",0};
-    
+    struct CustomSegment emptyPKt = {"",0};
+
     size_t bytes_read = 0;
 
     FILE *fp, *fp2;
@@ -66,68 +67,68 @@ int main(int argc, char *argv[]){
     sendto(sockParent,"Hello From Server",strlen("Hello From Server"),0,(struct sockaddr *)&client,addlen);
 
     bytes_read = 0;
+    double dataRead = 0;
 
     while(1){
 
-        for (size_t i = 1; i <= 5; i++)
+        for (size_t i = 0; i < 5; i++)
         {
             acked[i] = 0;
-            window[i-1].sequence = seqNumCounter;
-            bytes_read = fread(window[i-1].payload,1,sizeof(window[i-1].payload),fp);
-            seqNumCounter++;
-            // bzero(buffer,sizeof(buffer));
-            // printf("Sequence:%s\n",buffer);
-        }
+            window[i].sequence = seqNumCounter;
+            bytes_read = fread(window[i].payload,1,sizeof(window[i].payload),fp);
 
-        for (size_t i = 1; i <= 5; i++)
-        {   
-            sendto(sockParent,(struct CustomSegment*)&window[i-1],sizeof(window[i-1]),0,(struct sockaddr *)&client,addlen);
-            recvfrom(sockParent,buffer,sizeof(buffer),0,(struct sockaddr *)&client,&addlen);
-            // while(1){
-                
-            // }
-            // acked[atoi(buffer)] = 1;
-            printf("Sequence:%s\n",buffer);
+            if(bytes_read == 0){
+                window[i] = emptyPKt;
+                break;
+            }
+
+            printf("\nSeqNum:%d\nData Size:%ld\n",seqNumCounter,strlen(window[i].payload));
+
+            sprintf(buffer,"%s",window[i].payload);
+            fputs(buffer,fp2);
+            seqNumCounter++;
+            bzero(buffer,sizeof(buffer));
+        }
+        
+
+        for (size_t i = 0; i < 5; i++)
+        {
+            if(window[i].sequence == 0){
+                break;
+            }   
+            sendto(sockParent,(struct CustomSegment*)&window[i],sizeof(window[i]),0,(struct sockaddr *)&client,addlen);
             
             char data[1000];
             sprintf(data,"acked,%s\n",buffer);
             fputs(data,fp2);
 
             bzero(data,sizeof(data));
+
             bzero(buffer,sizeof(buffer));
         }
 
-        // for (size_t i = 0; i < 5; i++)
-        // {
-        //     char data[50];
-        //     // printf("acked[%ld] = %d\n",i,acked[i]);
-        //     sprintf(data,"acked[%ld] = %d\n",i,acked[i]);
-        //     fputs(data,fp2);
-        // }
+        for (size_t i = 0; i < 5; i++)
+        {
+            recvfrom(sockParent,buffer,sizeof(buffer),0,(struct sockaddr *)&client,&addlen);
+        }
         
+
         if (bytes_read == 0){
-            printf("\nhere");
+            printf("\n");
             int val = sendto(sockParent,(struct CustomSegment*)&pkt,sizeof(pkt),0,(struct sockaddr *)&client,addlen);   
-            printf("%d",val);
-            fclose(fp2);
             break;
         }
-        seqNumCounter++;
 
-        // while((recvfrom(sockParent,buffer,sizeof(buffer),0,(struct sockaddr *)&client,&addlen))>0){
-        //     printf("Sequence:%s\n",buffer);
-        //     bzero(buffer,sizeof(buffer));
-        // }
+    }
+    
+    sprintf(pkt.payload,"%d",seqNumCounter);    
+    printf("%s",pkt.payload);
+    sendto(sockParent,(struct CustomSegment*)&pkt,sizeof(pkt),0,(struct sockaddr *)&client,addlen);   
+    printf("\nSeqNumCounter:%d",seqNumCounter);
 
-        // char *p = (window[0].payload);   
+    fclose(fp);
+    fclose(fp2);
 
-        // sendto(sockParent,p,sizeof(window[0].payload),0,(struct sockaddr *)&client,addlen);
-
-        // int bytes_written =  recvfrom(sockParent,buffer,sizeof(buffer),0,(struct sockaddr *)&client,&addlen);
-
-        // printf("\r%s",buffer);
-
-    }   
     printf("Done");    
     return 0;
 

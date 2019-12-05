@@ -21,6 +21,7 @@ struct CustomSegment {
 int main(int argc, char const *argv[]) 
 { 
 
+	int seqNumCounter = 1;
 	int sock = 0, bytes_read,leng;
 	double size_rec = 0;
 	struct sockaddr_in serv_addr; 
@@ -29,7 +30,8 @@ int main(int argc, char const *argv[])
 	struct CustomSegment* pkt = malloc(sizeof(struct CustomSegment));
 
 
-    FILE *fp;
+    FILE *fp,*fp2;
+    fp2 = fopen("dataC.txt","w");
     fp = fopen(filename,"wb");
     if (fp == NULL) {
         perror("fopen()");
@@ -75,22 +77,41 @@ int main(int argc, char const *argv[])
 
 	bzero(buffer,sizeof(buffer));
 
-	while ((bytes_read = recvfrom(sock, pkt, sizeof(*pkt), 0,(struct sockaddr *)&serv_addr,&leng)) > 0) {
 		
-		size_rec += bytes_read;
+	while ((bytes_read = recvfrom(sock, pkt, sizeof(*pkt), 0,(struct sockaddr *)&serv_addr,&leng)) > 0) {
+
+		char *missingSeqNum;
+		// size_rec += sizeof(pkt->payload);
+		printf("\nSeqNum:%d\nServer Seq Num:%d\nData ecieved:%ld\n",seqNumCounter,pkt->sequence,strlen(pkt->payload));
+		// printf("%s\n----------------------",pkt->payload);
 		if(!strcmp(pkt->payload,"-1")){
 			printf("\nTransfer Complete");
 			break;
 		}
-		printf("Sequence: %d\n",pkt->sequence);
-		sprintf(buffer,"%d",pkt->sequence);
+
+		sprintf(missingSeqNum,"%d\t%d\n",seqNumCounter,pkt->sequence);
+		fputs(missingSeqNum,fp2);
+
+		// if(seqNumCounter != pkt->sequence){
+		// 	sprintf(missingSeqNum,"%d\t%d\n",seqNumCounter,pkt->sequence);
+		// 	fputs(missingSeqNum,fp2);
+		// 	bzero(missingSeqNum,sizeof(missingSeqNum));
+		// }
+		seqNumCounter++;
+		// printf("Sequence: %d\n",pkt->sequence);
+		sprintf(buffer,"%ld",sizeof(pkt->payload));
+		// fputs(buffer,fp2);
 
 		sendto(sock ,buffer , sizeof(buffer) ,0,(struct sockaddr *)&serv_addr,sizeof(serv_addr)); 	
         fwrite(pkt->payload,sizeof(pkt->payload),1,fp);
         bzero(buffer,sizeof(buffer));
+		bzero(pkt,sizeof(struct CustomSegment));
 	}
 
-	// printf("%f",size_rec/1000000);
+	recvfrom(sock,pkt,sizeof(*pkt),0,(struct sockaddr*)&serv_addr,&leng);
+	printf("\nSeqNumCounter:%.2f\n",((double)seqNumCounter/(double)(atoi(pkt->payload)))*100.0);
+	// printf("%f",size_rec);
     fclose(fp);
+	fclose(fp2);
 	return 0; 
 } 
