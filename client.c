@@ -52,7 +52,12 @@ int main(int argc, char const *argv[])
 	char buffer[500] = {0}; 
 
 	struct CustomSegment* pkt = malloc(sizeof(struct CustomSegment));
-	struct CustomSegment window[5];
+	struct CustomSegment* window[5];
+	for (size_t i = 0; i < 5; i++)
+	{
+		window[i] = malloc(sizeof(struct CustomSegment));
+	}
+	
 	struct CustomSegment emptyPKt = {"",0};
 
 
@@ -117,10 +122,11 @@ int main(int argc, char const *argv[])
 				break;
 			}
 			
-			window[i].sequence = pkt->sequence;
-			sprintf(window[i].payload,"%s",pkt->payload);
-			fwrite(pkt->payload,1,pkt->dataSize,fp);
-			printf("\nSeqNum:%d\nData Size:%d\n",pkt->sequence,pkt->dataSize);
+			window[i] = pkt;
+			// window[i]->sequence = pkt->sequence;
+			// strcpy(window[i]->payload,pkt->payload);
+			fwrite(window[i]->payload,1,window[i]->dataSize,fp);
+			printf("\nSeqNum:%d\nData Size:%d\n",window[i]->sequence,window[i]->dataSize);
 		}
 
 		printf("\n");
