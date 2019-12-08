@@ -10,13 +10,34 @@
 #define PORT 5000 
 #define filename "vid.mp4"
 #define IP_ADDR "10.7.27.171"
-
+#define MAX_LEN 500
 
 struct CustomSegment {
 
-    char payload[500];
+    char payload[MAX_LEN + 1];
+	int dataSize;
     int sequence;
 };
+
+void customSort(struct CustomSegment list[5])
+{
+    int i, j;
+    struct CustomSegment temp;
+    
+    for (i = 0; i < 5 - 1; i++)
+    {
+        for (j = 0; j < (5 - 1-i); j++)
+        {
+            if (list[j].sequence > list[j + 1].sequence)
+            {
+                temp = list[j];
+                list[j] = list[j + 1];
+                list[j + 1] = temp;
+            } 
+        }
+    }
+}
+
 
 int main(int argc, char const *argv[]) 
 { 
@@ -24,15 +45,21 @@ int main(int argc, char const *argv[])
 	int seqNumCounter = 1;
 	int sock = 0, bytes_read,leng;
 	double size_rec = 0;
+
 	struct sockaddr_in serv_addr; 
+
 	char *hello = "Hello from client"; 
 	char buffer[500] = {0}; 
+
 	struct CustomSegment* pkt = malloc(sizeof(struct CustomSegment));
+	struct CustomSegment window[5];
+	struct CustomSegment emptyPKt = {"",0};
 
 
     FILE *fp,*fp2;
     fp2 = fopen("dataC.txt","w");
     fp = fopen(filename,"wb");
+
     if (fp == NULL) {
         perror("fopen()");
         exit(EXIT_FAILURE);
@@ -47,7 +74,7 @@ int main(int argc, char const *argv[])
 	serv_addr.sin_family = AF_INET; 
 	serv_addr.sin_port = htons(PORT); 
 	
-	// Convert IPv4 and IPv6 addresses from text to binary form 
+
 	if(inet_pton(AF_INET, IP_ADDR, &serv_addr.sin_addr)<=0) 
 	{ 
 		printf("\nInvalid address/ Address not supported \n"); 	
@@ -61,55 +88,99 @@ int main(int argc, char const *argv[])
 
 	printf("%s\n",buffer);
 
-	// setsockopt(sock,SOL_SOCKET,SO_SNDTIMEO,(int *)4,sizeof(int));
-
-	// struct timeval timeout;      
-    // timeout.tv_sec = 10;
-    // timeout.tv_usec = 0;
-
-    // if (setsockopt (sock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout,
-    //             sizeof(timeout)) < 0)
-    //     error("setsockopt failed\n");
-
-    // if (setsockopt (sock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout,
-    //             sizeof(timeout)) < 0)
-    //     error("setsockopt failed\n");
-
 	bzero(buffer,sizeof(buffer));
 
-		
-	while ((bytes_read = recvfrom(sock, pkt, sizeof(*pkt), 0,(struct sockaddr *)&serv_addr,&leng)) > 0) {
+	int finished = 0;
+	int flagMissing = 0;
+	int totalSize = 0;
 
-		char *missingSeqNum;
-		// size_rec += sizeof(pkt->payload);
-		printf("\nSeqNum:%d\nServer Seq Num:%d\nData ecieved:%ld\n",seqNumCounter,pkt->sequence,strlen(pkt->payload));
-		// printf("%s\n----------------------",pkt->payload);
-		if(!strcmp(pkt->payload,"-1")){
-			printf("\nTransfer Complete");
+	while (1) {
+		
+		if(finished){
 			break;
 		}
 
-		sprintf(missingSeqNum,"%d\t%d\n",seqNumCounter,pkt->sequence);
-		fputs(missingSeqNum,fp2);
-
-		// if(seqNumCounter != pkt->sequence){
-		// 	sprintf(missingSeqNum,"%d\t%d\n",seqNumCounter,pkt->sequence);
-		// 	fputs(missingSeqNum,fp2);
-		// 	bzero(missingSeqNum,sizeof(missingSeqNum));
-		// }
-		seqNumCounter++;
-		// printf("Sequence: %d\n",pkt->sequence);
-		sprintf(buffer,"%ld",sizeof(pkt->payload));
-		// fputs(buffer,fp2);
-
-		sendto(sock ,buffer , sizeof(buffer) ,0,(struct sockaddr *)&serv_addr,sizeof(serv_addr)); 	
-        fwrite(pkt->payload,sizeof(pkt->payload),1,fp);
-        bzero(buffer,sizeof(buffer));
+		bzero(buffer,sizeof(buffer));
 		bzero(pkt,sizeof(struct CustomSegment));
-	}
+		
+		for(size_t i = 0 ;i < 5; i++){
 
-	recvfrom(sock,pkt,sizeof(*pkt),0,(struct sockaddr*)&serv_addr,&leng);
-	printf("\nSeqNumCounter:%.2f\n",((double)seqNumCounter/(double)(atoi(pkt->payload)))*100.0);
+			bytes_read = recvfrom(sock, pkt, sizeof(*pkt),0,(struct sockaddr *)&serv_addr,&leng);
+			totalSize += pkt->dataSize;
+
+			// if(bytes_read == -1){	
+			// 	window[i] = emptyPKt;
+			// }
+			if(!strcmp(pkt->payload,"-1")){
+				finished =1;
+				printf("\nTransfer Complete");
+				break;
+			}
+			
+			window[i].sequence = pkt->sequence;
+			sprintf(window[i].payload,"%s",pkt->payload);
+			fwrite(pkt->payload,1,pkt->dataSize,fp);
+			printf("\nSeqNum:%d\nData Size:%d\n",pkt->sequence,pkt->dataSize);
+		}
+
+		printf("\n");
+
+		int acked = 0;
+
+		// while (acked != 1){
+
+		// 	for (size_t i = 0; i < 5; i++)
+		// 	{
+		// 		char buff[10];
+		// 		if(!strcmp(pkt->payload,"-1")){
+		// 			break;
+		// 		}
+		// 		if(window[i].sequence != seqNumCounter){
+
+		// 			flagMissing++;
+		// 			sprintf(buff,"%d\n",seqNumCounter);
+		// 			fputs(buff,fp2);
+		// 			continue;
+		// 		}
+		// 		// sendto(sock ,buffer , sizeof(buffer) ,0,(struct sockaddr *)&serv_addr,sizeof(serv_addr)); 	
+		// 		seqNumCounter++;
+		// 	}
+		// 	acked = 1;
+		// }
+
+
+		// while(flagMissing){
+			
+		// 	bytes_read = recvfrom(sock, pkt, sizeof(*pkt), 0,(struct sockaddr *)&serv_addr,&leng);
+		// 	printf("%d\n",pkt->sequence);
+		// 	for (size_t i = 0; i < 5; i++)
+		// 	{
+		// 		if(window[i].sequence == 0){
+		// 			window[i].sequence = pkt->sequence;
+		// 			sprintf(window[i].payload,"%s",pkt->payload);
+		// 		}
+		// 	}
+		// 	flagMissing--;			
+		// }
+	
+
+		// customSort(window);
+
+		// for (size_t i = 0; i < 5; i++)
+		// {
+		// 	if(!strcmp(pkt->payload,"-1")){
+		// 			continue;
+		// 	}
+		// 	// printf("%d (%ld)\t",window[i].sequence,strlen(window[i].payload));			
+		// 	fwrite(window[i].payload,1,window[i].dataSize,fp);
+		// }
+		
+
+	}
+	printf("\nTotalSize:%d\n",totalSize);
+	printf("\n%s",pkt->payload);
+	// recvfrom(sock,pkt,sizeof(*pkt),0,(struct sockaddr*)&serv_addr,&leng);
+	// printf("\nSeqNumCounter:%.2f\n",((double)seqNumCounter/(double)(atoi(pkt->payload)))*100.0);
 	// printf("%f",size_rec);
     fclose(fp);
 	fclose(fp2);
