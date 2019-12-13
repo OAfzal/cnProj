@@ -52,14 +52,13 @@ int main(int argc, char const *argv[])
 	char buffer[500] = {0}; 
 
 	struct CustomSegment* pkt = malloc(sizeof(struct CustomSegment));
-	struct CustomSegment* window[5];
-	for (size_t i = 0; i < 5; i++)
-	{
-		window[i] = malloc(sizeof(struct CustomSegment));
-	}
+	struct CustomSegment window[5];
+	// for (size_t i = 0; i < 5; i++)
+	// {
+	// 	window[i] = malloc(sizeof(struct CustomSegment));
+	// }
 	
 	struct CustomSegment emptyPKt = {"",0};
-
 
     FILE *fp,*fp2;
     fp2 = fopen("dataC.txt","w");
@@ -98,6 +97,7 @@ int main(int argc, char const *argv[])
 	int finished = 0;
 	int flagMissing = 0;
 	int totalSize = 0;
+	int packetsRecieved = 0;
 
 	while (1) {
 		
@@ -107,52 +107,78 @@ int main(int argc, char const *argv[])
 
 		bzero(buffer,sizeof(buffer));
 		bzero(pkt,sizeof(struct CustomSegment));
+
+		//Emptying the array of previous remains
+		for (size_t i = 0; i < 5; i++)
+		{
+			window[i] = emptyPKt;
+		}
+		
 		
 		for(size_t i = 0 ;i < 5; i++){
 
-			bytes_read = recvfrom(sock, pkt, sizeof(*pkt),0,(struct sockaddr *)&serv_addr,&leng);
+			char buffAll[50];
+
+			bytes_read = recvfrom(sock, pkt, sizeof(*pkt),MSG_DONTWAIT,(struct sockaddr *)&serv_addr,&leng);
+
+			//Breaks when bytes = 0
+			if(bytes_read == 0)
+				break;
+
 			totalSize += pkt->dataSize;
 
-			// if(bytes_read == -1){	
-			// 	window[i] = emptyPKt;
-			// }
-			if(!strcmp(pkt->payload,"-1")){
+			window[i] = *pkt;
+
+			// window[i]->sequence = pkt->sequence;
+			// window[i]->dataSize = pkt->dataSize;
+			// window[i]->payload = pkt->payload;
+
+			if(!strcmp(window[i].payload,"-1")){
 				finished =1;
-				printf("\nTransfer Complete");
+				printf("\nTransfer Complete");	
 				break;
 			}
-			
-			window[i] = pkt;
-			// window[i]->sequence = pkt->sequence;
+
+			if(window[i].sequence > seqNumCounter){
+				for (size_t iter = seqNumCounter; iter <= window[i].sequence; iter++)
+				{
+					sprintf(buffAll,"\nSeqNum:%d\tExpected:%ld",window[i].sequence,iter);
+					fputs(buffAll,fp2);
+				}
+				seqNumCounter = window[i].sequence;
+			}
+
+			seqNumCounter++;
+			// window[i].sequence = pkt->sequence;
 			// strcpy(window[i]->payload,pkt->payload);
-			fwrite(window[i]->payload,1,window[i]->dataSize,fp);
-			printf("\nSeqNum:%d\nData Size:%d\n",window[i]->sequence,window[i]->dataSize);
+			// fwrite(window[i]->payload,1,window[i]->dataSize,fp);
+			printf("\nSeqNum:%d\nData Size:%d\n",window[i].sequence,window[i].dataSize);
+		}
+		
+		// int acked = 0;
+		
+
+		for (size_t j = 0; j < 5; j++)
+		{
+			char buff[10];
+
+			if(!strcmp(window[j].payload,"-1")){
+				break;
+			}
+			// if(window[i]->sequence != seqNumCounter){
+
+			// 	flagMissing++;
+			// 	sprintf(buff,"%d\n",seqNumCounter);
+			// 	sendto(sock ,buffer , sizeof(buffer) ,0,(struct sockaddr *)&serv_addr,sizeof(serv_addr));
+			// 	continue;
+			// }
+			printf("%d\n",window[j].sequence);
+			sprintf(buff,"%d",window[j].sequence);
+			sendto(sock ,buff , sizeof(buffer) ,0,(struct sockaddr *)&serv_addr,sizeof(serv_addr)); 	
+			bzero(buff,sizeof(buff));
+			// seqNumCounter++;
 		}
 
-		printf("\n");
-
-		int acked = 0;
-
-		// while (acked != 1){
-
-		// 	for (size_t i = 0; i < 5; i++)
-		// 	{
-		// 		char buff[10];
-		// 		if(!strcmp(pkt->payload,"-1")){
-		// 			break;
-		// 		}
-		// 		if(window[i].sequence != seqNumCounter){
-
-		// 			flagMissing++;
-		// 			sprintf(buff,"%d\n",seqNumCounter);
-		// 			fputs(buff,fp2);
-		// 			continue;
-		// 		}
-		// 		// sendto(sock ,buffer , sizeof(buffer) ,0,(struct sockaddr *)&serv_addr,sizeof(serv_addr)); 	
-		// 		seqNumCounter++;
-		// 	}
-		// 	acked = 1;
-		// }
 
 
 		// while(flagMissing){

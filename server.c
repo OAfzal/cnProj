@@ -9,7 +9,7 @@
 #include <sys/time.h>
 
 #define PORT 5000 
-#define filename "haris.mp4"
+#define filename "haris2.mp4"
 #define MAX_LEN 500
 
 struct CustomSegment {
@@ -34,7 +34,7 @@ int main(int argc, char *argv[]){
     size_t bytesRead = 0;
     double totalBytes = 0, sizeFile = 0;
     struct sockaddr_in server, client;
-    int sockParent, acked[5],seqNumCounter = 1, addlen = sizeof(server);
+    int sockParent, acked[5], seqNumCounter = 1, expectedSeqNum = seqNumCounter ,addlen = sizeof(server);
 
     char buffer[MAX_LEN +1];
 
@@ -112,73 +112,49 @@ int main(int argc, char *argv[]){
             bytesRead = fread(window[i].payload,1,sizeof(window[i].payload),fp);
             if(bytesRead == 0){
                 window[i] = emptyPKt;
-                printf("\ntoota");
-                break;
+                // printf("\ntoota");
+                // break;
             }
             window[i].dataSize = bytesRead;
             totalBytes += bytesRead;
             i++;
-            seqNumCounter++;
             printf("\nSeqNum:%d\nData Size:%ld\n",seqNumCounter,bytesRead);
-        }
+            seqNumCounter++;
+        }        
 
-
-
-        // for (size_t i = 0; i < 5; i++)
-        // {
-        //     acked[i] = 0;
-        //     window[i].sequence = seqNumCounter;
-        //     bytes_read = fread(window[i].payload,1,sizeof(window[i].payload),fp);
-        //     totalBytes += bytes_read;
-        
-        //     // if(bytes_read == 0){
-        //     //     window[i].sequence = 0;
-        //     //     sprintf(window[i].payload,"%s",emptyPKt.payload);
-        //     //     continue;
-        //     //     // while(bytes_read == 0 && ferror(fp) ){
-        //     //     //     sprintf(window[i].payload,"%s",emptyPKt.payload);
-        //     //     //     bytes_read = fread(window[i].payload,1,500,fp);
-        //     //     // }
-        //     // }
-
-        //     printf("\nSeqNum:%d\nData Size:%ld\n",seqNumCounter,strlen(window[i].payload));
-        //     seqNumCounter++;
-        // }
-
-        // if(bytes_read == 0){
-        //     break;
-        // }
-        
-
-        for (size_t i = 0; i < 5; i++)
+        for (size_t j = 0; j < 5; j++)
         {
-            if(window[i].sequence == 0){
-                continue;
-            }   
-            sendto(sockParent,(struct CustomSegment*)&window[i],sizeof(window[i]),0,(struct sockaddr *)&client,addlen);
+            // if(window[j].sequence == 0){
+            //     continue;
+            // }   
+            sendto(sockParent,(struct CustomSegment*)&window[j],sizeof(window[j]),0,(struct sockaddr *)&client,addlen);
         }
 
+        int data = 0;
 
-        // if (bytes_read == 0){
-        //     printf("\n");
-        //     int val = sendto(sockParent,(struct CustomSegment*)&pkt,sizeof(pkt),0,(struct sockaddr *)&client,addlen);   
-        //     break;
-        // }
+        for(size_t j = 0;j<5;j++)
+        {
+            data = recvfrom(sockParent,buffer,sizeof(buffer),0,(struct sockaddr *)&client,&addlen);
+            int ack = atoi(buffer);
+            printf("%d\t",ack);
+            for (size_t i = 0; i < 5; i++)
+            {
+                if(window[i].sequence == ack){
+                    acked[i] = 1;
+                }
+            }
+            bzero(buffer,sizeof(buffer));
+        }
+        printf("\n");
 
-        // int ackedAll = 0;
-
-        // while ((recvfrom(sockParent,buffer,sizeof(buffer),0,(struct sockaddr *)&client,&addlen)) > 0)
+        // for (size_t j = 0; j < 5; j++)
         // {
-        //     int ack = atoi(buffer);
-         
-        //     for (size_t i = 0; i < 5; i++)
-        //     {
-        //         if(window[i].sequence == ack){
-        //             acked[i] = 1;
-        //         }
+        //     if(acked[i] == 0){
+        //         sprintf(buffer,"\n%d",window[i].sequence);
+        //         fputs(buffer,fp2);
         //     }
-        //     bzero(buffer,sizeof(buffer));
         // }
+        
         // for (size_t i = 0; i < 5; i++)
         // {
         //     if(acked[i] == 0){
