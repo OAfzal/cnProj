@@ -9,7 +9,7 @@
 
 #define PORT 5000 
 #define filename "vid.mp4"
-#define IP_ADDR "40.121.137.163"
+#define IP_ADDR "192.168.43.68"
 #define MAX_LEN 500
 
 struct CustomSegment {
@@ -120,20 +120,19 @@ int main(int argc, char const *argv[])
 			bytes_read = recvfrom(sock, pkt, sizeof(*pkt),MSG_DONTWAIT,(struct sockaddr *)&serv_addr,&leng);
 			char buffAll[50];
 
+			if(!strcmp(pkt->payload,"-1")){
+				finished =1;
+				printf("\nTransfer Complete");	
+				break;
+			}
+
 			if(pkt->sequence < seqNumCounter){
 				window[(pkt->sequence - 1) % 5] = emptyPKt;
 				continue;
 			}
 
-			totalSize += pkt->dataSize;
 
 			window[(pkt->sequence - 1) % 5] = *pkt;
-
-			if(!strcmp(window[i].payload,"-1")){
-				finished =1;
-				printf("\nTransfer Complete");	
-				break;
-			}
 
 			// if(window[i].sequence > seqNumCounter){
 			// 	for (size_t iter = seqNumCounter; iter <= window[i].sequence; iter++)
@@ -145,10 +144,6 @@ int main(int argc, char const *argv[])
 			// }
 
 			seqNumCounter++;
-			// window[i].sequence = pkt->sequence;
-			// strcpy(window[i]->payload,pkt->payload);
-			// fwrite(window[i]->payload,1,window[i]->dataSize,fp);
-			// printf("\nSeqNum:%d\nData Size:%d\n",window[i].sequence,window[i].dataSize);
 			i++;
 		}
 		
@@ -184,16 +179,14 @@ int main(int argc, char const *argv[])
 			bytea =recvfrom(sock, pkt, sizeof(*pkt),0,(struct sockaddr *)&serv_addr,&leng);
 			window[(pkt->sequence - 1) % 5] = *pkt;
 
-
 			if(!strcmp(window[(pkt->sequence - 1)%5].payload,"-1")){
 				finished =1;
 				printf("\nTransfer Complete");	
 				break;
 			}
 
-			totalSize += pkt->dataSize;
 
-			// printf("\nRE:SeqNum:%d\nData Size:%d\nSeqNumCounter:%d\n",window[(pkt->sequence - 1) %5].sequence,window[(pkt->sequence - 1) %5].dataSize,seqNumCounter);
+			// printff("\nRE:SeqNum:%d\nData Size:%d\nSeqNumCounter:%d\n",window[(pkt->sequence - 1) %5].sequence,window[(pkt->sequence - 1) %5].dataSize,seqNumCounter);
 
 			notAcked--;
 		}
@@ -201,6 +194,7 @@ int main(int argc, char const *argv[])
 		printf("\nSTART:%d",seqNumCounter);
 		for (size_t j = 0; j < 5; j++)
 		{
+			totalSize += window[j].dataSize;
 			if(!strcmp(window[j].payload,"-1")){
 				continue;
 			}
@@ -212,15 +206,8 @@ int main(int argc, char const *argv[])
 			// printf("Seq%d (%ld)\t",window[i].sequence,strlen(window[i].payload));			
 			fwrite(window[j].payload,1,window[j].dataSize,fp);
 		}
-		
-
 	}
-	printf("\nTotalSize:%d\n",totalSize);
-	printf("\n%s",pkt->payload);
-	// recvfrom(sock,pkt,sizeof(*pkt),0,(struct sockaddr*)&serv_addr,&leng);
-	// printf("\nSeqNumCounter:%.2f\n",((double)seqNumCounter/(double)(atoi(pkt->payload)))*100.0);
-	// printf("%f",size_rec);
+	// printf("\nTotalSize:%d\n",totalSize);
     fclose(fp);
-	fclose(fp2);
 	return 0; 
 } 
