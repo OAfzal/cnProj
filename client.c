@@ -9,7 +9,7 @@
 
 #define PORT 5000 
 #define filename "vid.mp4"
-#define IP_ADDR "10.7.27.171"
+#define IP_ADDR "40.121.137.163"
 #define MAX_LEN 500
 
 struct CustomSegment {
@@ -114,24 +114,20 @@ int main(int argc, char const *argv[])
 			window[i] = emptyPKt;
 		}
 		
-		
-		for(size_t i = 0 ;i < 5; i++){
-
-			char buffAll[50];
+		size_t i = 0;
+		while(i<5){
 
 			bytes_read = recvfrom(sock, pkt, sizeof(*pkt),MSG_DONTWAIT,(struct sockaddr *)&serv_addr,&leng);
+			char buffAll[50];
 
-			//Breaks when bytes = 0
-			if(bytes_read == 0)
-				break;
+			if(pkt->sequence < seqNumCounter){
+				window[(pkt->sequence - 1) % 5] = emptyPKt;
+				continue;
+			}
 
 			totalSize += pkt->dataSize;
 
-			window[i] = *pkt;
-
-			// window[i]->sequence = pkt->sequence;
-			// window[i]->dataSize = pkt->dataSize;
-			// window[i]->payload = pkt->payload;
+			window[(pkt->sequence - 1) % 5] = *pkt;
 
 			if(!strcmp(window[i].payload,"-1")){
 				finished =1;
@@ -139,24 +135,24 @@ int main(int argc, char const *argv[])
 				break;
 			}
 
-			if(window[i].sequence > seqNumCounter){
-				for (size_t iter = seqNumCounter; iter <= window[i].sequence; iter++)
-				{
-					sprintf(buffAll,"\nSeqNum:%d\tExpected:%ld",window[i].sequence,iter);
-					fputs(buffAll,fp2);
-				}
-				seqNumCounter = window[i].sequence;
-			}
+			// if(window[i].sequence > seqNumCounter){
+			// 	for (size_t iter = seqNumCounter; iter <= window[i].sequence; iter++)
+			// 	{
+			// 		sprintf(buffAll,"\nSeqNum:%d\tExpected:%ld",window[i].sequence,iter);
+			// 		fputs(buffAll,fp2);
+			// 	}
+			// 	seqNumCounter = window[i].sequence;
+			// }
 
 			seqNumCounter++;
 			// window[i].sequence = pkt->sequence;
 			// strcpy(window[i]->payload,pkt->payload);
 			// fwrite(window[i]->payload,1,window[i]->dataSize,fp);
-			printf("\nSeqNum:%d\nData Size:%d\n",window[i].sequence,window[i].dataSize);
+			// printf("\nSeqNum:%d\nData Size:%d\n",window[i].sequence,window[i].dataSize);
+			i++;
 		}
 		
-		// int acked = 0;
-		
+		int notAcked = 0;
 
 		for (size_t j = 0; j < 5; j++)
 		{
@@ -165,47 +161,57 @@ int main(int argc, char const *argv[])
 			if(!strcmp(window[j].payload,"-1")){
 				break;
 			}
-			// if(window[i]->sequence != seqNumCounter){
 
-			// 	flagMissing++;
-			// 	sprintf(buff,"%d\n",seqNumCounter);
-			// 	sendto(sock ,buffer , sizeof(buffer) ,0,(struct sockaddr *)&serv_addr,sizeof(serv_addr));
-			// 	continue;
-			// }
-			printf("%d\n",window[j].sequence);
+			if(window[j].sequence == 0){
+				notAcked++;
+			}
+
+			// printf("%d\n",window[j].sequence);
 			sprintf(buff,"%d",window[j].sequence);
 			sendto(sock ,buff , sizeof(buffer) ,0,(struct sockaddr *)&serv_addr,sizeof(serv_addr)); 	
 			bzero(buff,sizeof(buff));
 			// seqNumCounter++;
 		}
 
+		//Receiving Missed Packets
+
+		int bytea = 0;
+		
+		// printf("\nnotAcked=%d",notAcked);
+
+		while (notAcked != 0){
+
+			bytea =recvfrom(sock, pkt, sizeof(*pkt),0,(struct sockaddr *)&serv_addr,&leng);
+			window[(pkt->sequence - 1) % 5] = *pkt;
 
 
-		// while(flagMissing){
-			
-		// 	bytes_read = recvfrom(sock, pkt, sizeof(*pkt), 0,(struct sockaddr *)&serv_addr,&leng);
-		// 	printf("%d\n",pkt->sequence);
-		// 	for (size_t i = 0; i < 5; i++)
-		// 	{
-		// 		if(window[i].sequence == 0){
-		// 			window[i].sequence = pkt->sequence;
-		// 			sprintf(window[i].payload,"%s",pkt->payload);
-		// 		}
-		// 	}
-		// 	flagMissing--;			
-		// }
-	
+			if(!strcmp(window[(pkt->sequence - 1)%5].payload,"-1")){
+				finished =1;
+				printf("\nTransfer Complete");	
+				break;
+			}
 
-		// customSort(window);
+			totalSize += pkt->dataSize;
 
-		// for (size_t i = 0; i < 5; i++)
-		// {
-		// 	if(!strcmp(pkt->payload,"-1")){
-		// 			continue;
-		// 	}
-		// 	// printf("%d (%ld)\t",window[i].sequence,strlen(window[i].payload));			
-		// 	fwrite(window[i].payload,1,window[i].dataSize,fp);
-		// }
+			// printf("\nRE:SeqNum:%d\nData Size:%d\nSeqNumCounter:%d\n",window[(pkt->sequence - 1) %5].sequence,window[(pkt->sequence - 1) %5].dataSize,seqNumCounter);
+
+			notAcked--;
+		}
+
+		printf("\nSTART:%d",seqNumCounter);
+		for (size_t j = 0; j < 5; j++)
+		{
+			if(!strcmp(window[j].payload,"-1")){
+				continue;
+			}
+			else if(window[j].sequence == 0){
+				continue;
+			}
+
+			printf("\nSeqNum:%d\nData Size:%d\n",window[j].sequence,window[j].dataSize);
+			// printf("Seq%d (%ld)\t",window[i].sequence,strlen(window[i].payload));			
+			fwrite(window[j].payload,1,window[j].dataSize,fp);
+		}
 		
 
 	}
