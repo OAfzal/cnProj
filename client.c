@@ -9,7 +9,7 @@
 
 #define PORT 5000 
 #define filename "vid.mp4"
-#define IP_ADDR "192.168.43.68"
+#define IP_ADDR "40.121.137.163"
 #define MAX_LEN 500
 
 struct CustomSegment {
@@ -19,32 +19,12 @@ struct CustomSegment {
     int sequence;
 };
 
-void customSort(struct CustomSegment list[5])
-{
-    int i, j;
-    struct CustomSegment temp;
-    
-    for (i = 0; i < 5 - 1; i++)
-    {
-        for (j = 0; j < (5 - 1-i); j++)
-        {
-            if (list[j].sequence > list[j + 1].sequence)
-            {
-                temp = list[j];
-                list[j] = list[j + 1];
-                list[j + 1] = temp;
-            } 
-        }
-    }
-}
-
 
 int main(int argc, char const *argv[]) 
 { 
 
 	int seqNumCounter = 1;
 	int sock = 0, bytes_read,leng;
-	double size_rec = 0;
 
 	struct sockaddr_in serv_addr; 
 
@@ -52,16 +32,12 @@ int main(int argc, char const *argv[])
 	char buffer[500] = {0}; 
 
 	struct CustomSegment* pkt = malloc(sizeof(struct CustomSegment));
-	struct CustomSegment window[5];
-	// for (size_t i = 0; i < 5; i++)
-	// {
-	// 	window[i] = malloc(sizeof(struct CustomSegment));
-	// }
-	
+	struct CustomSegment window[5];	
 	struct CustomSegment emptyPKt = {"",0};
 
-    FILE *fp,*fp2;
-    fp2 = fopen("dataC.txt","w");
+    FILE *fp;
+
+	
     fp = fopen(filename,"wb");
 
     if (fp == NULL) {
@@ -95,12 +71,10 @@ int main(int argc, char const *argv[])
 	bzero(buffer,sizeof(buffer));
 
 	int finished = 0;
-	int flagMissing = 0;
 	int totalSize = 0;
-	int packetsRecieved = 0;
 
 	while (1) {
-		
+
 		if(finished){
 			break;
 		}
@@ -108,7 +82,8 @@ int main(int argc, char const *argv[])
 		bzero(buffer,sizeof(buffer));
 		bzero(pkt,sizeof(struct CustomSegment));
 
-		//Emptying the array of previous remains
+		//INIT WITH EMPTY SEGMENTS
+
 		for (size_t i = 0; i < 5; i++)
 		{
 			window[i] = emptyPKt;
@@ -116,13 +91,16 @@ int main(int argc, char const *argv[])
 		
 		size_t i = 0;
 		while(i<5){
-
+			
 			bytes_read = recvfrom(sock, pkt, sizeof(*pkt),MSG_DONTWAIT,(struct sockaddr *)&serv_addr,&leng);
-			char buffAll[50];
 
-			if(!strcmp(pkt->payload,"-1")){
+			window[(pkt->sequence - 1) % 5] = *pkt;
+
+			if(pkt->sequence == -1){
 				finished =1;
-				printf("\nTransfer Complete");	
+				printf("\nTransfer Complete");		
+				printf("\nSeqNum:%d\tFinished:%d\n",pkt->sequence,finished);
+				// goto khatam;
 				break;
 			}
 
@@ -131,21 +109,17 @@ int main(int argc, char const *argv[])
 				continue;
 			}
 
-
-			window[(pkt->sequence - 1) % 5] = *pkt;
-
-			// if(window[i].sequence > seqNumCounter){
-			// 	for (size_t iter = seqNumCounter; iter <= window[i].sequence; iter++)
-			// 	{
-			// 		sprintf(buffAll,"\nSeqNum:%d\tExpected:%ld",window[i].sequence,iter);
-			// 		fputs(buffAll,fp2);
-			// 	}
-			// 	seqNumCounter = window[i].sequence;
-			// }
-
 			seqNumCounter++;
 			i++;
+
+
+			// if (((pkt->sequence - 1) % 5) >= 0)
+			// {
+
+			// }
 		}
+
+		//SENDING ACKNOWLEDGEMENTS		
 		
 		int notAcked = 0;
 
@@ -153,7 +127,7 @@ int main(int argc, char const *argv[])
 		{
 			char buff[10];
 
-			if(!strcmp(window[j].payload,"-1")){
+			if((window[j].sequence == -1)){
 				break;
 			}
 
@@ -161,53 +135,49 @@ int main(int argc, char const *argv[])
 				notAcked++;
 			}
 
-			// printf("%d\n",window[j].sequence);
 			sprintf(buff,"%d",window[j].sequence);
 			sendto(sock ,buff , sizeof(buffer) ,0,(struct sockaddr *)&serv_addr,sizeof(serv_addr)); 	
 			bzero(buff,sizeof(buff));
-			// seqNumCounter++;
 		}
 
-		//Receiving Missed Packets
-
-		int bytea = 0;
-		
-		// printf("\nnotAcked=%d",notAcked);
+		//RECIEVEING MISSED SEGMENTS
 
 		while (notAcked != 0){
 
-			bytea =recvfrom(sock, pkt, sizeof(*pkt),0,(struct sockaddr *)&serv_addr,&leng);
-			window[(pkt->sequence - 1) % 5] = *pkt;
+			recvfrom(sock, pkt, sizeof(*pkt),0,(struct sockaddr *)&serv_addr,&leng);
 
-			if(!strcmp(window[(pkt->sequence - 1)%5].payload,"-1")){
-				finished =1;
-				printf("\nTransfer Complete");	
+			if(window[(pkt->sequence - 1)%5].sequence == -1 ){
 				break;
 			}
 
+			if (((pkt->sequence - 1) % 5) >= 0)
+			{
+				window[(pkt->sequence - 1) % 5] = *pkt;
 
-			// printff("\nRE:SeqNum:%d\nData Size:%d\nSeqNumCounter:%d\n",window[(pkt->sequence - 1) %5].sequence,window[(pkt->sequence - 1) %5].dataSize,seqNumCounter);
-
-			notAcked--;
+				notAcked--;
+			}
 		}
 
-		printf("\nSTART:%d",seqNumCounter);
+		//WRITING TO DESTINATION FILE
+
 		for (size_t j = 0; j < 5; j++)
 		{
 			totalSize += window[j].dataSize;
-			if(!strcmp(window[j].payload,"-1")){
-				continue;
+
+			if(window[j].sequence == -1){
+				break;
 			}
 			else if(window[j].sequence == 0){
 				continue;
 			}
 
 			printf("\nSeqNum:%d\nData Size:%d\n",window[j].sequence,window[j].dataSize);
-			// printf("Seq%d (%ld)\t",window[i].sequence,strlen(window[i].payload));			
 			fwrite(window[j].payload,1,window[j].dataSize,fp);
 		}
+
 	}
-	// printf("\nTotalSize:%d\n",totalSize);
+	khatam:
+	printf("\nTotalSize:%d\n",totalSize);
     fclose(fp);
 	return 0; 
 } 

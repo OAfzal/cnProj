@@ -110,7 +110,7 @@ int main(int argc, char *argv[]){
             if(bytesRead == 0){
                 window[ic] = emptyPKt;
                 // printf("\ntoota");
-                // break;
+                break;
             }
             window[ic].dataSize = bytesRead;
             totalBytes += bytesRead;
@@ -160,10 +160,11 @@ int main(int argc, char *argv[]){
     printf("\nTOtalSIze:%.2f\n",totalBytes);
     // // sprintf(pkt.payload,"%d",seqNumCounter);    
     // // printf("%s",pkt.payload);
-    for (size_t i = 0; i < 2; i++)
-    {
-        sendto(sockParent,(struct CustomSegment*)&terminationPkt,sizeof(terminationPkt),0,(struct sockaddr *)&client,addlen);   
-    }
+    // for (size_t i = 0; i < 5; i++)
+    // {
+
+    // }
+    sendto(sockParent,(struct CustomSegment*)&terminationPkt,sizeof(terminationPkt),0,(struct sockaddr *)&client,addlen);   
     // // printf("\nSeqNumCounter:%d",seqNumCounter);
 
     fclose(fp);
