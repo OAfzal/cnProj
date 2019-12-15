@@ -7,10 +7,8 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
-#define PORT 5000 
-#define filename "vid3.mp4"
-#define IP_ADDR "10.7.26.180"
 #define MAX_LEN 500
+#define ANSI_COLOR_GREEN "\x1b[32m"
 
 struct CustomSegment {
 
@@ -20,7 +18,7 @@ struct CustomSegment {
 };
 
 
-int main(int argc, char const *argv[]) 
+int main(int argc, char *argv[]) 
 { 
 
 	int seqNumCounter = 1;
@@ -37,6 +35,15 @@ int main(int argc, char const *argv[])
 
     FILE *fp;
 
+	if(argc != 4){
+        printf("\nPlease provide 3 argumnets in the format:");
+        printf(ANSI_COLOR_GREEN"\n'./server FILENAME PORT IP_ADDRESS'\n\n");
+        exit(2);
+    }
+
+    char *filename = argv[1];
+    int port = atoi(argv[2]);
+	char *ipAddr = argv[3];
 	
     fp = fopen(filename,"wb");
 
@@ -52,10 +59,10 @@ int main(int argc, char const *argv[])
 	} 
 
 	serv_addr.sin_family = AF_INET; 
-	serv_addr.sin_port = htons(PORT); 
+	serv_addr.sin_port = htons(port); 
 	
 
-	if(inet_pton(AF_INET, IP_ADDR, &serv_addr.sin_addr)<=0) 
+	if(inet_pton(AF_INET, ipAddr, &serv_addr.sin_addr)<=0) 
 	{ 
 		printf("\nInvalid address/ Address not supported \n"); 	
 		return -1; 
@@ -94,6 +101,7 @@ int main(int argc, char const *argv[])
 			
 			bytes_read = recvfrom(sock, pkt, sizeof(*pkt),MSG_DONTWAIT,(struct sockaddr *)&serv_addr,&leng);
 
+			//IF TERMINATION SEGMENT ADD TO WINDOW AND BREAK
 			if(pkt->sequence == -1){
 				finished =1;
 				printf("\nTransfer Complete");		
@@ -102,8 +110,10 @@ int main(int argc, char const *argv[])
 				break;
 			}
 
+			//PLACE SEGMENT REC INTO WINDOW
 			window[(pkt->sequence - 1) % 5] = *pkt;
 
+			//IF SEGMENT DUPLICATE DISCARD THEM
 			if(pkt->sequence < seqNumCounter){
 				window[(pkt->sequence - 1) % 5] = emptyPKt;
 				continue;
@@ -111,18 +121,10 @@ int main(int argc, char const *argv[])
 
 			seqNumCounter++;
 			i++;
-
-
-			// if (((pkt->sequence - 1) % 5) >= 0)
-			// {
-
-			// }
 		}
 
 		//SENDING ACKNOWLEDGEMENTS		
 
-
-		
 		int notAcked = 0;
 
 		for (size_t j = 0; j < 5; j++)
@@ -133,38 +135,28 @@ int main(int argc, char const *argv[])
 				break;
 			}
 
+			//COUNT BECAUSE NOT RECIEVED
+
 			if(window[j].sequence == 0){
 				notAcked++;
 			}
 
+			//ADD TO BUFFER AND SEND
 			sprintf(buff,"%d",window[j].sequence);
 			sendto(sock ,buff , sizeof(buffer) ,0,(struct sockaddr *)&serv_addr,sizeof(serv_addr)); 	
 			bzero(buff,sizeof(buff));
 		}
-
-		// if(finished == 1){
-		// 	notAcked = 0;
-		// 	for (size_t m = 0; m < 5; m++)
-		// 	{
-		// 		printf("\nnotAcked:%d",notAcked);
-		// 		printf("\nSeq:%d",window[m].sequence);
-		// 		if(window[m].sequence != 0 && window[m].sequence != -1){
-		// 			notAcked++;
-		// 		}
-		// 	}
-		// }
-
 
 		//RECIEVEING MISSED SEGMENTS
 
 		while (notAcked != 0){
 
 			recvfrom(sock, pkt, sizeof(*pkt),0,(struct sockaddr *)&serv_addr,&leng);
-
+			//IF TERMINATION PACKET BREAK
 			if(window[(pkt->sequence - 1)%5].sequence == -1 ){
 				break;
 			}
-
+			//PLACE PACKET INTO WINDOW ARRAY
 			if (((pkt->sequence - 1) % 5) >= 0)
 			{
 				window[(pkt->sequence - 1) % 5] = *pkt;
@@ -173,25 +165,25 @@ int main(int argc, char const *argv[])
 			}
 		}
 
-		
-
 		//WRITING TO DESTINATION FILE
 
 		for (size_t j = 0; j < 5; j++)
 		{
+			//ADD TO SIZE
 			totalSize += window[j].dataSize;
 
+			//IF TERMINATION PACKET BREAK
 			if(window[j].sequence == -1){
 				break;
 			}
+			//IF EMPTY PACKET CONTINUE TO NEXT
 			else if(window[j].sequence == 0){
 				continue;
 			}
-
+			//WRITE SEGMENT TO FILE
 			printf("\nSeqNum:%d\nData Size:%d\n",window[j].sequence,window[j].dataSize);
 			fwrite(window[j].payload,1,window[j].dataSize,fp);
 		}
-
 	}
 	printf("\nTotalSize:%d\n",totalSize);
     fclose(fp);
