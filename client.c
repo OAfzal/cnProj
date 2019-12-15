@@ -9,7 +9,7 @@
 
 #define PORT 5000 
 #define filename "vid.mp4"
-#define IP_ADDR "40.121.137.163"
+#define IP_ADDR "10.7.26.180"
 #define MAX_LEN 500
 
 struct CustomSegment {
@@ -84,9 +84,9 @@ int main(int argc, char const *argv[])
 
 		//INIT WITH EMPTY SEGMENTS
 
-		for (size_t i = 0; i < 5; i++)
+		for (size_t j = 0; j < 5; j++)
 		{
-			window[i] = emptyPKt;
+			window[j] = emptyPKt;
 		}
 		
 		size_t i = 0;
@@ -94,15 +94,15 @@ int main(int argc, char const *argv[])
 			
 			bytes_read = recvfrom(sock, pkt, sizeof(*pkt),MSG_DONTWAIT,(struct sockaddr *)&serv_addr,&leng);
 
-			window[(pkt->sequence - 1) % 5] = *pkt;
-
 			if(pkt->sequence == -1){
 				finished =1;
 				printf("\nTransfer Complete");		
 				printf("\nSeqNum:%d\tFinished:%d\n",pkt->sequence,finished);
-				// goto khatam;
+				window[i] = *pkt;
 				break;
 			}
+
+			window[(pkt->sequence - 1) % 5] = *pkt;
 
 			if(pkt->sequence < seqNumCounter){
 				window[(pkt->sequence - 1) % 5] = emptyPKt;
@@ -120,6 +120,8 @@ int main(int argc, char const *argv[])
 		}
 
 		//SENDING ACKNOWLEDGEMENTS		
+
+
 		
 		int notAcked = 0;
 
@@ -140,6 +142,20 @@ int main(int argc, char const *argv[])
 			bzero(buff,sizeof(buff));
 		}
 
+		// if(finished == 1){
+		// 	notAcked = 0;
+		// 	for (size_t m = 0; m < 5; m++)
+		// 	{
+		// 		printf("\nseq:%d",window[m].sequence);
+		// 		if(window[m].sequence == 0){
+					
+		// 		}
+		// 	}
+		// 	printf("\nnotACked:%d",notAcked);
+		// 	printf("\nbabu");
+		// }
+
+
 		//RECIEVEING MISSED SEGMENTS
 
 		while (notAcked != 0){
@@ -157,6 +173,8 @@ int main(int argc, char const *argv[])
 				notAcked--;
 			}
 		}
+
+		
 
 		//WRITING TO DESTINATION FILE
 
@@ -176,7 +194,6 @@ int main(int argc, char const *argv[])
 		}
 
 	}
-	khatam:
 	printf("\nTotalSize:%d\n",totalSize);
     fclose(fp);
 	return 0; 

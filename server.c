@@ -102,13 +102,21 @@ int main(int argc, char *argv[]){
     
     while(totalBytes < sizeFile){
 
+        for (size_t i = 0; i < 5; i++)
+        {
+            window[i] = emptyPKt;
+        }
+        
+
         int ic = 0;
         while ((ic < 5))
         {
             window[ic].sequence = seqNumCounter;
             bytesRead = fread(window[ic].payload,1,sizeof(window[ic].payload),fp);
+            
             if(bytesRead == 0){
-                window[ic] = emptyPKt;
+                window[ic] = terminationPkt;
+                printf("\nTotal:%.2f %.2f",totalBytes,sizeFile);
                 // printf("\ntoota");
                 break;
             }
@@ -118,12 +126,10 @@ int main(int argc, char *argv[]){
             printf("\nSeqNum:%d\nData Size:%ld\n",seqNumCounter,bytesRead);
             seqNumCounter++;
         }        
+        
 
         for (size_t j = 0; j < 5; j++)
         {
-            if(window[j].dataSize == 0){
-                continue;
-            }
             sendto(sockParent,(struct CustomSegment*)&window[j],sizeof(window[j]),0,(struct sockaddr *)&client,addlen);
 	        acked[j] = 0;
         }
@@ -135,24 +141,17 @@ int main(int argc, char *argv[]){
             data = recvfrom(sockParent,buffer,sizeof(buffer),0,(struct sockaddr *)&client,&addlen);
             int ack = atoi(buffer);
             printf("%d\t",ack);
-	        acked[(ack - 1) % 5] = 1;
+    	    acked[(ack - 1) % 5] = 1;
             bzero(buffer,sizeof(buffer));
         }
         printf("\n");
 
-        // for (size_t j = 0; j < 5; j++)
-        // {
-        //     if(acked[i] == 0){
-        //         sprintf(buffer,"\n%d",window[i].sequence);
-        //         fputs(buffer,fp2);
-        //     }
-        // }
         
          for (size_t i = 0; i < 5; i++)
          {
        	     if(acked[i] == 0){
-                sendto(sockParent,(struct CustomSegment*)&window[i],sizeof(window[i]),0,(struct sockaddr *)&client,addlen);
-		        printf("\nRE:%d",window[i].sequence);
+                 sendto(sockParent,(struct CustomSegment*)&window[i],sizeof(window[i]),0,(struct sockaddr *)&client,addlen);
+		         printf("\nRE:%d",window[i].sequence);
              }
          }
         
@@ -160,10 +159,6 @@ int main(int argc, char *argv[]){
     printf("\nTOtalSIze:%.2f\n",totalBytes);
     // // sprintf(pkt.payload,"%d",seqNumCounter);    
     // // printf("%s",pkt.payload);
-    // for (size_t i = 0; i < 5; i++)
-    // {
-
-    // }
     sendto(sockParent,(struct CustomSegment*)&terminationPkt,sizeof(terminationPkt),0,(struct sockaddr *)&client,addlen);   
     // // printf("\nSeqNumCounter:%d",seqNumCounter);
 
