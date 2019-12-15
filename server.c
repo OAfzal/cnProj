@@ -121,9 +121,9 @@ int main(int argc, char *argv[]){
 
         for (size_t j = 0; j < 5; j++)
         {
-            // if(window[j].sequence == 0){
-            //     continue;
-            // }   
+            if(window[j].dataSize == 0){
+                continue;
+            }
             sendto(sockParent,(struct CustomSegment*)&window[j],sizeof(window[j]),0,(struct sockaddr *)&client,addlen);
 	        acked[j] = 0;
         }
