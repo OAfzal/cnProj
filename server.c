@@ -9,7 +9,7 @@
 #include <sys/time.h>
 
 #define PORT 5000 
-#define filename "file.mp4"
+#define filename "file2.mp4"
 #define MAX_LEN 500
 
 struct CustomSegment {
@@ -42,10 +42,9 @@ int main(int argc, char *argv[]){
     struct CustomSegment window[5];
     struct CustomSegment terminationPkt = {"-1",0,-1};
     struct CustomSegment emptyPKt = {"",0,0};
-    FILE *fp, *fp2;
+    FILE *fp;
 
     fp = fopen(filename,"rb");
-    fp2 = fopen("data.mp4","wb");
     
     if (fp == NULL) {
         perror("fopen()");
@@ -81,24 +80,6 @@ int main(int argc, char *argv[]){
     sendto(sockParent,"Hello From Server",strlen("Hello From Server"),0,(struct sockaddr *)&client,addlen);
 
     bytesRead = 0;
-
-    // while (totalBytes < sizeFile)
-    // {
-    //     int i = 0;
-    //     while ((i < 5))
-    //     {
-    //         bytesRead = fread(window[i].payload,1,sizeof(window[i].payload),fp);
-    //         if(bytesRead == 0){
-    //             break;
-    //         }
-    //         window[i].dataSize = bytesRead;
-    //         totalBytes += bytesRead;
-    //         i++;
-    //     }
-    //     // printf("\nj:%d\tTotalBytes:%.2f",j,totalBytes);
-    // }
-
-    // printf("\nTotalBytes:%.2f",totalBytes);
     
     while(totalBytes < sizeFile){
 
@@ -113,11 +94,9 @@ int main(int argc, char *argv[]){
         {
             window[ic].sequence = seqNumCounter;
             bytesRead = fread(window[ic].payload,1,sizeof(window[ic].payload),fp);
-            
+
             if(bytesRead == 0){
                 window[ic] = terminationPkt;
-                printf("\nTotal:%.2f %.2f",totalBytes,sizeFile);
-                // printf("\ntoota");
                 break;
             }
             window[ic].dataSize = bytesRead;
@@ -128,6 +107,7 @@ int main(int argc, char *argv[]){
         }        
         
 
+
         for (size_t j = 0; j < 5; j++)
         {
             sendto(sockParent,(struct CustomSegment*)&window[j],sizeof(window[j]),0,(struct sockaddr *)&client,addlen);
@@ -136,7 +116,7 @@ int main(int argc, char *argv[]){
 
         int data = 0;
 
-        for(size_t j = 0;j<5;j++)
+        for(size_t j = 0;j<ic;j++)
         {
             data = recvfrom(sockParent,buffer,sizeof(buffer),0,(struct sockaddr *)&client,&addlen);
             int ack = atoi(buffer);
@@ -156,17 +136,10 @@ int main(int argc, char *argv[]){
          }
         
     }
-    printf("\nTOtalSIze:%.2f\n",totalBytes);
-    // // sprintf(pkt.payload,"%d",seqNumCounter);    
-    // // printf("%s",pkt.payload);
+    printf("\nTotalSize:%.2f\n",totalBytes);
     sendto(sockParent,(struct CustomSegment*)&terminationPkt,sizeof(terminationPkt),0,(struct sockaddr *)&client,addlen);   
-    // // printf("\nSeqNumCounter:%d",seqNumCounter);
 
     fclose(fp);
-    fclose(fp2);
 
-    // printf("\nTotalBYtes:%d\n",totalBytes);
-    printf("Done");    
     return 0;
-
 }

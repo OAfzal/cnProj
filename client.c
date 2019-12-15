@@ -8,7 +8,7 @@
 #include <sys/time.h>
 
 #define PORT 5000 
-#define filename "vid.mp4"
+#define filename "vid3.mp4"
 #define IP_ADDR "10.7.26.180"
 #define MAX_LEN 500
 
@@ -146,13 +146,12 @@ int main(int argc, char const *argv[])
 		// 	notAcked = 0;
 		// 	for (size_t m = 0; m < 5; m++)
 		// 	{
-		// 		printf("\nseq:%d",window[m].sequence);
-		// 		if(window[m].sequence == 0){
-					
+		// 		printf("\nnotAcked:%d",notAcked);
+		// 		printf("\nSeq:%d",window[m].sequence);
+		// 		if(window[m].sequence != 0 && window[m].sequence != -1){
+		// 			notAcked++;
 		// 		}
 		// 	}
-		// 	printf("\nnotACked:%d",notAcked);
-		// 	printf("\nbabu");
 		// }
 
 
